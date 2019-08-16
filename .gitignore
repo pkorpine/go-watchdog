@@ -10,3 +10,9 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+sqlite\.db
+sqlite_test\.db
+vendor/
+\.DS_Store
+go-watchdog

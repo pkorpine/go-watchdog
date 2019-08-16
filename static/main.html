@@ -1,0 +1,399 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Remote watchdog</title>
+    <meta name="description" content="The remote watchdog">
+    <link rel="shortcut icon" href="static/logo-64x64.png">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script> 
+    <script src="static/moment.min.js"></script>
+    
+    <script>
+        // Ensure URL has a trailing slash
+        var url = document.URL.split("#")[0];
+        url += url.endsWith("/") ? "" : "/";
+        console.log(url);
+        
+        var auto_refresh = setInterval(checkLogin, 30000);
+        
+        // https://stackoverflow.com/a/37096512
+        function secondsToHms(d) {
+            var h = Math.floor(d / 3600);
+            var m = Math.floor(d % 3600 / 60);
+            var s = Math.floor(d % 3600 % 60);
+            var hDisplay = h > 0 ? h + "h " : "";
+            var mDisplay = m > 0 ? m + "m " : "";
+            var sDisplay = s > 0 ? s + "s " : "";
+            return hDisplay + mDisplay + sDisplay; 
+        }
+        
+        function hmsToSeconds(s) {
+            var re = /(\d+h)?\s*(\d+m)?\s*(\d+s)?/; 
+            var a = re.exec(s);
+            var h = a[1] ? parseInt(a[1]) : 0;
+            var m = a[2] ? parseInt(a[2]) : 0;
+            var s = a[3] ? parseInt(a[3]) : 0;
+            return s + 60*(m + 60*h);
+        }
+        
+        function createRow(row) {
+            var exp_date = new Date(row.expiry * 1000);
+            var exp = moment(exp_date).fromNow();
+            var interval = secondsToHms(row.interval);
+            var progress = '';
+            var state = '';
+            
+            switch (row.state) {
+                case 'new':
+                progress = '<div class="progress"><div class="progress-bar bg-warning" style="width: 100%">NEW</div></div>';
+                state = '';
+                break;
+                
+                case 'running': 
+                var left = (exp_date - Date.now()) / 1000;
+                var percentage = Math.round(100.0 - 100.0 * left / row.interval);
+                progress = '<div class="progress"><div class="progress-bar bg-success" style="width: '+percentage+'%"></div></div>';
+                state = '<span title="'+exp_date+'"><small>Expires '+exp+'</small></span>';
+                break;
+                
+                case 'expired':
+                progress = '<div class="progress"><div class="progress-bar bg-danger" style="width: 100%">EXPIRED</div></div>';
+                state = '<span title="'+exp_date+'"><small>Expired '+exp+'</small></span>';
+                break;
+                
+                default: 
+                state = row.state + exp;
+            }
+            
+            var tr = '';
+            tr += '<td>#'+row.timerid + ' ' + row.name+'</td>';
+            tr += '<td>'+interval+'</td>';
+            tr += '<td>'+progress+state+'</td>';
+            
+            var menu = '';
+            menu += '<a class="dropdown-item buttonShow" href="#">Show</a>';
+            if (row.state == 'new') 
+            menu += '<a class="dropdown-item buttonKick" href="#">Start</a>';
+            else
+            menu += '<a class="dropdown-item buttonKick" href="#">Restart</a>';
+            menu += '<a class="dropdown-item buttonDelete" href="#">Delete</a>';
+            
+            var options = '<div class="dropdown"><a class="btn btn-sm btn-secondary dropdown-toggle" href="#" role="button" id="dropdown'+row.timerid+'" data-toggle="dropdown">Options</a><div class="dropdown-menu" aria-labelledby="dropdown'+row.timerid+'">'+menu+'</div></div>';
+            tr += '<td>' + options + '</td>';
+            
+            return '<tr id="timerid-'+row.timerid+'">' + tr + '</tr>';
+        }
+        
+        function updateTable() {
+            $.ajax({
+                url: url + 'api/timer',
+                dataType: 'json',
+                success: function(data) {
+                    var tbody = '';
+                    $.each(data, function(i, row) {
+                        tbody += createRow(row);
+                    });
+                    
+                    if (tbody=='') {
+                        // No rows
+                        tbody = '<tr><td span="4">No timers</td></tr>';
+                    }
+                    
+                    $('#timers > tbody').html(tbody);
+                },
+                error: function(data) {
+                    console.log("error", data);
+                    showalert("Timer table update failed", "alert-danger");
+                    userLoggedOut();
+                }
+            })
+        }
+        
+        function showalert(message, alerttype) {
+            $('#alertPlaceholder').append('<div id="alertdiv" class="alert ' +  alerttype + '"><a class="close" data-dismiss="alert">×</a><span>'+message+'</span></div>')
+        }
+        
+        function userLoggedIn() {
+            // Probably logged in
+            updateTable();
+            $('.myLoggedOut').addClass('d-none')
+            $('.myLoggedIn').removeClass('d-none')
+        }
+        
+        function userLoggedOut() {
+            document.cookie = "Authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            $('.myLoggedOut').removeClass('d-none')
+            $('.myLoggedIn').addClass('d-none')
+        }
+        
+        function checkLogin() {
+            if (document.cookie.includes('Authorization=')) {
+                userLoggedIn();
+            }
+            else {
+                userLoggedOut();
+            }
+        }
+        
+        $(document).ready(function() {
+            checkLogin();
+            
+            // Login
+            $('#buttonSubmit').click(function (event) {
+                event.preventDefault();
+                var form = $("#formLogin");
+                $.ajax({
+                    type: 'POST',
+                    url: url + 'login',
+                    data: form.serialize(),
+                    success: function(data) {
+                        $('#formKey').removeClass("is-invalid").addClass("is-valid")
+                        checkLogin();
+                    },
+                    error: function(data) {
+                        $('#formKey').removeClass("is-valid").addClass("is-invalid")
+                    }
+                });       
+            });
+            
+            // Logout
+            $(document).on('click', '#buttonLogout', function (event) {
+                e.preventDefault();
+                userLoggedOut();
+            });
+            
+            // Kick timer (e.g. start/restart)
+            $(document).on('click', '.buttonKick', function (event) {
+                event.preventDefault();
+                var row = $(this).closest('tr');
+                var timerid = parseInt(row.attr('id').replace('timerid-', ''));
+                $.ajax({
+                    type: 'GET',
+                    url: url + 'api/timer/' + timerid + "/kick",
+                    success: function(data) {
+                        console.log("kicked");
+                        updateTable(); // TODO: refresh only the row
+                    },
+                    error: function(data) {
+                        console.log("Start failed", data);
+                        showalert("Timer start failed", "alert-danger");
+                    }
+                });
+            });
+            
+            // Delete timer
+            $(document).on('click', '.buttonDelete', function (event) {
+                event.preventDefault();
+                var row = $(this).closest('tr');
+                var timerid = parseInt(row.attr('id').replace('timerid-', ''));
+                row.toggleClass('danger');
+                
+                var d = $('#myModalDeleteConfirmation');
+                var d2 = d.find('.modal-title');
+                d2.html("Delete timer " + timerid);
+                d.data('id', timerid);
+                d.data('row', row);
+                d.modal('show');
+            });
+            
+            // Delete timer confirmation
+            $(document).on('click', '.btnConfirmDelete', function (event) {
+                event.preventDefault();
+                var d = $('#myModalDeleteConfirmation');
+                var timerid = d.data('id');
+                var row = d.data('row');
+                d.modal('hide');
+                $.ajax({
+                    type: 'DELETE',
+                    url: url + 'api/timer/' + timerid,
+                    success: function(data) {
+                        row.remove();
+                    },
+                    error: function(data) {
+                        console.log("Delete failed", data);
+                        showalert("Timer delete failed", "alert-danger");
+                    }
+                });
+            });
+            
+            // Show timer
+            $(document).on('click', '.buttonShow', function (event) {
+                event.preventDefault();
+                var row = $(this).closest('tr');
+                var timerid = parseInt(row.attr('id').replace('timerid-', ''));
+                //row.toggleClass('danger');
+                
+                var d = $('#myModalTimer');
+                console.log(d);
+                var d2 = d.find('.modal-title');
+                d2.html("Timer " + timerid);
+                d.data('id', timerid);
+                d.data('row', row);
+                d.modal('show');
+                
+                // Get token
+                $.ajax({
+                    url: url + 'api/timer/' + timerid + '/token',
+                    success: function(data) {
+                        var a = '<a href="'+url+'kick/'+data+'">Link to kick timer</a>';
+                        d.find('.modal-body').append(a);
+                    },
+                    error: function(data) {
+                        showalert("Timer token get failed", "alert-danger");
+                    }
+                });
+            });
+            
+            // Create timer
+            $(document).on('click', '#buttonNew', function (event) {
+                event.preventDefault();
+                
+                var data = {
+                    name: $('#formName').val(),
+                    interval: hmsToSeconds($('#formInterval').val()),
+                }
+                
+                if (data.interval == 0) {
+                    // Invalid interval
+                    $('#formInterval').removeClass("is-valid").addClass("is-invalid")
+                    return;
+                }
+                
+                $('#formInterval').removeClass("is-invalid").addClass("is-valid")
+                
+                var btn = $(this);
+                var bntHtml = btn.html();
+                btn.prop("disabled", true);
+                btn.html('<span class="spinner-border" role="status" aria-hidden="true"></span>Saving...');
+                
+                $('#formInterval').removeClass("is-invalid").addClass("is-valid")
+                
+                $.ajax({
+                    type: 'POST',
+                    url: url + 'api/timer',
+                    data: JSON.stringify(data),
+                    dataType: 'json',
+                    contentType: 'application/json',
+                    success: function(data) {
+                        var row = createRow(data);
+                        $('#timers').append(row);
+                        btn.html(bntHtml);
+                        btn.prop("disabled", false);
+                        $('#dropdownMenuLink').dropdown('toggle');
+                    },
+                    error: function(data) {
+                        showalert("Timer create failed", "alert-danger");
+                        $('#dropdownMenuLink').dropdown('toggle');
+                    }
+                });
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        
+        <!-- Top bar -->
+        <div class="navbar navbar-expland-lg navbar-light bg-light mb-3">
+            <a class="navbar-brand" href="#"><img src="static/logo-64x64.png" width="64" height="64" class="mr-2">Remote Watchdog</a>
+            
+            <div class="nav-item dropdown ml-auto myLoggedIn d-none">
+                <a class="btn btn-primary dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-toggle="dropdown">Add timer</a>
+                <form class="dropdown-menu" id="formTimer" aria-labelledby="dropdownMemnuLink">
+                    <div class="form-group">
+                        <label for="formName">Timer name</label>
+                        <input type="text" class="form-control" id="formName" placeholder="Name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="formInterval">Interval <small>(e.g. "1h 30m")</small></label>
+                        <input type="text" class="form-control" id="formInterval" placeholder="Interval" required>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" class="btn btn-primary" id="buttonNew">Create</button>
+                    </div>
+                </form>
+            </div>
+            
+            <button type="button" class="btn btn-danger myLoggedIn d-none" id="buttonLogout">Logout</button>
+        </div>
+        
+        <!-- Place for alerts -->
+        <div id="alertPlaceholder"></div>
+        
+        <!-- Login -->
+        <div class="row myLoggedOut d-none justify-content-center">
+            <div class="col-md-6 border p-3 shadow text-center">
+                <form class="xform-inline" id="formLogin" method="POST">
+                    <div class="form-group">
+                        <input type="text" class="form-control" id="formKey" name="key" placeholder="Key" required>
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary" id="buttonSubmit">Login</button>
+                    </div>
+                    <div class="form-group">
+                        <p>If you don't have your key, please talk to the <a href="{{.LoginURL}}">Telegram Bot</a>.</p>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Timers table -->
+        <table class="table table-sm table-hover myLoggedIn d-none" id="timers">
+            <thead>
+                <tr>
+                    <th>Timer</th>
+                    <th>Interval</th>
+                    <th>Status</th>
+                    <th>&nbsp;</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- filled with REST data -->
+            </tbody>
+        </table>
+        
+        <!-- Delete confirmation dialog -->
+        <div class="modal" tabindex="-1" role="dialog" id="myModalDeleteConfirmation">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Delete timer</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-danger btnConfirmDelete">Delete</button>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>        
+        
+        <!-- Timer dialog -->
+        <div class="modal" tabindex="-1" role="dialog" id="myModalTimer">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Timer info</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Kick</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-dismiss="modal">Ok</button>
+                    </div>
+                </div>
+            </div>
+        </div>        
+    </div>
+</body>
+</html>
