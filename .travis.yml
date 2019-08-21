@@ -30,12 +30,13 @@ notifications:
 # Anything in before_script that returns a nonzero exit code will flunk the
 # build and immediately stop. It's sorta like having set -e enabled in bash.
 # Make sure golangci-lint is vendored.
-before_script:
-  - go install github.com/golangci/golangci-lint/cmd/golangci-lint
+#before_script:
+#  - go install github.com/golangci/golangci-lint/cmd/golangci-lint
 
 # script always runs to completion (set +e). If we have linter issues AND a
 # failing test, we want to see both. Configure golangci-lint with a
 # .golangci.yml file at the top level of your repo.
 script:
+  - go install github.com/golangci/golangci-lint/cmd/golangci-lint
   - golangci-lint run       # run a bunch of code checkers/linters in parallel
   - go test -v -race ./... -coverpkg=github.com/pkorpine/go-watchdog/internal/lib
