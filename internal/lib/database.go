@@ -156,8 +156,11 @@ func (p *Database) GetTimersJSON(userid int64) string {
 		if err := rows.Scan(&t.Id, &t.Name, &t.Interval, &t.Expiry, &t.State); err != nil {
 			log.Fatal(err)
 		}
-		var x []byte
-		x, err = json.Marshal(t)
+		x, err := json.Marshal(t)
+
+		if err != nil {
+			panic(err)
+		}
 
 		if len(s) > 0 {
 			s += ",\n"
@@ -222,7 +225,7 @@ func (t *Timer) Delete() (err error) {
 
 func (t *Timer) Kick() error {
 	now := time.Now().Unix()
-	t.Database.db.Exec(
+	_, err := t.Database.db.Exec(
 		`UPDATE Timer 
 		SET expiry=interval+?, state="running"
 		WHERE id=? and user_id=?`,
@@ -230,6 +233,10 @@ func (t *Timer) Kick() error {
 		t.Id,
 		t.UserId,
 	)
+
+	if err != nil {
+		panic(err)
+	}
 
 	log.Println("Timer.Kick", t)
 

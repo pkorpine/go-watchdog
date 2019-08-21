@@ -158,9 +158,9 @@ func deleteTimer(t *testing.T, timer lib.Timer, exists bool) {
 
 func TestAPI(t *testing.T) {
 	const INTERVAL int = 1
-	var timers []lib.Timer
+
 	// Get list of timers - empty
-	timers = getTimerList(t)
+	timers := getTimerList(t)
 	if len(timers) != 0 {
 		t.Error("Timer list expected to be empty")
 	}
@@ -308,13 +308,5 @@ func executeRequest(req *http.Request) *httptest.ResponseRecorder {
 func checkResponseCode(t *testing.T, expected, actual int) {
 	if expected != actual {
 		t.Errorf("Expected response code %d. Got %d\n", expected, actual)
-	}
-}
-
-func mockTelegram(t *testing.T, tgidExpected int64) {
-	lib.SendTelegramMsg = func(tgid int64, msg string) {
-		if tgid != tgidExpected {
-			t.Errorf("SendTelegramMsg - Expected id %d, got %d\n", tgidExpected, tgid)
-		}
 	}
 }

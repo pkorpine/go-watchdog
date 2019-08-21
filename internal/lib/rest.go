@@ -61,7 +61,10 @@ func NewRestServer(prefix string, db *Database) (e *echo.Echo) {
 		}{
 			LoginURL: TgLoginURL,
 		}
-		template.Must(template.ParseFiles("static/main.html")).Execute(&tmplBuf, tmplData)
+		err := template.Must(template.ParseFiles("static/main.html")).Execute(&tmplBuf, tmplData)
+		if err != nil {
+			panic(err)
+		}
 		return c.HTML(http.StatusOK, tmplBuf.String())
 	})
 
@@ -112,10 +115,6 @@ func NewRestServer(prefix string, db *Database) (e *echo.Echo) {
 	// Create timer
 	g.POST("/api/timer", func(c echo.Context) error {
 		var err error
-		type RestTimerParams struct {
-			Name     string `json:"name" form:"name" query:"name"`
-			Interval int    `json:"interval" form:"interval" query:"interval"`
-		}
 		rt := Timer{}
 
 		if err := c.Bind(&rt); err != nil {
@@ -151,7 +150,10 @@ func NewRestServer(prefix string, db *Database) (e *echo.Echo) {
 			return c.String(http.StatusNotFound, "Timer not found")
 		}
 
-		t.Delete()
+		err := t.Delete()
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		return c.String(http.StatusOK, "Timer deleted")
 	})
@@ -193,7 +195,11 @@ func NewRestServer(prefix string, db *Database) (e *echo.Echo) {
 			return c.String(http.StatusNotFound, "Timer not found")
 		}
 
-		t.Kick()
+		err := t.Kick()
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		return c.String(http.StatusOK, "Timer kicked")
 	})
 
@@ -215,7 +221,10 @@ func NewRestServer(prefix string, db *Database) (e *echo.Echo) {
 			timerid := int64(claims["timerid"].(float64))
 			userid := int64(claims["userid"].(float64))
 			t := db.GetTimer(timerid, userid)
-			t.Kick()
+			err := t.Kick()
+			if err != nil {
+				log.Fatal(err)
+			}
 			return c.String(http.StatusOK, "Timer kicked")
 		} else {
 			fmt.Println(err)

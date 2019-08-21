@@ -33,7 +33,7 @@ func (a *App) Run(bindParameter string) {
 	// Ticker
 	ticker := time.NewTicker(3 * time.Second)
 	go func() {
-		for _ = range ticker.C {
+		for range ticker.C {
 			a.DB.ProcessExpiredTimers()
 		}
 	}()

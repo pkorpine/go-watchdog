@@ -44,10 +44,15 @@ func initTelegram(token string, db *Database) {
 			TgId: int64(m.Sender.ID),
 		}
 		created := db.CreateOrGetUserKeyByTelegramId(&u)
+		var err error
 		if created {
-			bot.Send(m.Sender, fmt.Sprintf("Welcome! Your access key:\n%s", u.Key))
+			_, err = bot.Send(m.Sender, fmt.Sprintf("Welcome! Your access key:\n%s", u.Key))
 		} else {
-			bot.Send(m.Sender, fmt.Sprintf("Here's your access key:\n%s", u.Key))
+			_, err = bot.Send(m.Sender, fmt.Sprintf("Here's your access key:\n%s", u.Key))
+		}
+
+		if err != nil {
+			log.Fatal(err)
 		}
 	})
 
@@ -66,5 +71,8 @@ func sendTelegramMsg(tgid int64, msg string) {
 		return
 	}
 	chat := tb.Chat{ID: tgid}
-	Tg.Send(&chat, msg)
+	_, err := Tg.Send(&chat, msg)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
