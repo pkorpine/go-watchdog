@@ -34,8 +34,8 @@ func getTimer(c echo.Context, db *Database) *Timer {
 	return t
 }
 
-func NewRestServer(prefix string, db *Database) (e *echo.Echo) {
-	hmacSecret := []byte("my_secret_key") // TODO: get from env
+func NewRestServer(prefix string, db *Database, hmacSecret string) (e *echo.Echo) {
+	hmacSecretBytes := []byte(hmacSecret)
 	e = echo.New()
 
 	e.Pre(middleware.Rewrite(map[string]string{
@@ -84,7 +84,7 @@ func NewRestServer(prefix string, db *Database) (e *echo.Echo) {
 			"userid": userid,
 			"exp":    exp.Unix(),
 		})
-		tokenString, err := token.SignedString(hmacSecret)
+		tokenString, err := token.SignedString(hmacSecretBytes)
 
 		if err != nil {
 			fmt.Println(err)
@@ -105,7 +105,7 @@ func NewRestServer(prefix string, db *Database) (e *echo.Echo) {
 	g := e.Group("/restricted")
 
 	g.Use(middleware.JWTWithConfig(middleware.JWTConfig{
-		SigningKey:  hmacSecret,
+		SigningKey:  hmacSecretBytes,
 		TokenLookup: "cookie:Authorization",
 	}))
 
@@ -177,7 +177,7 @@ func NewRestServer(prefix string, db *Database) (e *echo.Echo) {
 			"userid":  t.UserId,
 			"timerid": t.Id,
 		})
-		tokenString, err := token.SignedString(hmacSecret)
+		tokenString, err := token.SignedString(hmacSecretBytes)
 
 		if err != nil {
 			fmt.Println(err)
@@ -208,7 +208,7 @@ func NewRestServer(prefix string, db *Database) (e *echo.Echo) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("Unexpected signing method")
 			}
-			return hmacSecret, nil
+			return hmacSecretBytes, nil
 		})
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
