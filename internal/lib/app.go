@@ -13,13 +13,13 @@ type App struct {
 	Rest *echo.Echo
 }
 
-func (a *App) Initialize(dbParameters, token, prefix string) {
+func (a *App) Initialize(dbParameters, token, prefix, hmacSecret string) {
 	// Database
 	a.DB = NewDatabase(dbParameters)
 	a.DB.Init()
 
 	// REST Server
-	a.Rest = NewRestServer(prefix, a.DB)
+	a.Rest = NewRestServer(prefix, a.DB, hmacSecret)
 
 	// Telegram Bot
 	InitTelegram(token, a.DB)
